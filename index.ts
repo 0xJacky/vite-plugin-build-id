@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import url from 'node:url'
 import {normalizePath, ResolvedConfig, UserConfig} from 'vite'
 
 export interface AppVersion {
@@ -32,7 +33,7 @@ class VitePluginBuildId {
   import_json(path: string) {
     return JSON.parse(
       fs.readFileSync(
-        new URL(path, import.meta.url), {encoding: 'utf8', flag: 'r'}
+        new URL(url.pathToFileURL(path), import.meta.url), {encoding: 'utf8', flag: 'r'}
       )
     )
   }
@@ -88,12 +89,9 @@ class VitePluginBuildId {
 export default function vitePluginBuildId() {
   let config: ResolvedConfig
   let v: VitePluginBuildId
-  let cmd: string
-  let err: Error | undefined
   return {
     name: 'vite-plugin-build-id',
     config(_config: UserConfig, {command}) {
-      cmd = command
       // resolve root
       const resolvedRoot = normalizePath(
         _config?.root ? path.resolve(_config.root) : process.cwd()
@@ -114,17 +112,8 @@ export default function vitePluginBuildId() {
     configResolved(resolvedConfig: ResolvedConfig) {
       config = resolvedConfig
     },
-    buildEnd(error?: Error) {
-      err = error
-      if (error) {
-        throw error
-      }
-    },
-    closeBundle() {
-      // called at success build
-      if (cmd === 'build' && err === undefined) {
-        v.build_version_json(config.build.outDir)
-      }
+    writeBundle () {
+      v.build_version_json(config.build.outDir)
     }
   }
 }

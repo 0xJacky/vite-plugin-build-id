@@ -10,6 +10,5 @@ export default function vitePluginBuildId(): {
         command: any;
     }): void;
     configResolved(resolvedConfig: ResolvedConfig): void;
-    buildEnd(error?: Error): void;
-    closeBundle(): void;
+    writeBundle(): void;
 };

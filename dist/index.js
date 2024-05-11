@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import url from 'node:url';
 import { normalizePath } from 'vite';
 class VitePluginBuildId {
     root;
@@ -20,7 +21,7 @@ class VitePluginBuildId {
         return normalizePath(path.join(this.root, ...filename));
     }
     import_json(path) {
-        return JSON.parse(fs.readFileSync(new URL(path, import.meta.url), { encoding: 'utf8', flag: 'r' }));
+        return JSON.parse(fs.readFileSync(new URL(url.pathToFileURL(path), import.meta.url), { encoding: 'utf8', flag: 'r' }));
     }
     async resolve_current_version() {
         try {
@@ -67,12 +68,9 @@ class VitePluginBuildId {
 export default function vitePluginBuildId() {
     let config;
     let v;
-    let cmd;
-    let err;
     return {
         name: 'vite-plugin-build-id',
         config(_config, { command }) {
-            cmd = command;
             // resolve root
             const resolvedRoot = normalizePath(_config?.root ? path.resolve(_config.root) : process.cwd());
             v = new VitePluginBuildId(resolvedRoot);
@@ -89,17 +87,8 @@ export default function vitePluginBuildId() {
         configResolved(resolvedConfig) {
             config = resolvedConfig;
         },
-        buildEnd(error) {
-            err = error;
-            if (error) {
-                throw error;
-            }
-        },
-        closeBundle() {
-            // called at success build
-            if (cmd === 'build' && err === undefined) {
-                v.build_version_json(config.build.outDir);
-            }
+        writeBundle() {
+            v.build_version_json(config.build.outDir);
         }
     };
 }
