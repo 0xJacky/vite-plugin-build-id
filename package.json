@@ -1,0 +1,23 @@
+{
+  "type": "module",
+  "name": "vite-plugin-build-id",
+  "description": "Automatically generates build_id after production compiled",
+  "version": "0.2.8",
+  "author": "0xJacky",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsc -w -p .",
+    "build": "rimraf dist && tsc -p ."
+  },
+  "keywords": [
+    "vite-plugin"
+  ],
+  "dependencies": {
+    "@types/node": "^20.10.1",
+    "rimraf": "^5.0.5",
+    "typescript": "^5.3.2",
+    "vite": "^5.0.4"
+  },
+  "packageManager": "pnpm@8.15.5+sha256.4b4efa12490e5055d59b9b9fc9438b7d581a6b7af3b5675eb5c5f447cee1a589"
+}
