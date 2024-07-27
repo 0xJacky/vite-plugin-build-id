@@ -1,7 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import url from 'node:url'
-import {normalizePath, ResolvedConfig, UserConfig} from 'vite'
+import { normalizePath, UserConfig } from 'vite'
+import type { OutputOptions } from 'rollup'
 
 export interface AppVersion {
   version: string
@@ -11,6 +12,7 @@ export interface AppVersion {
 
 class VitePluginBuildId {
   public root: string
+  public destination: string
   private readonly project_json_path: string
   private readonly root_ver_path: string
   private package_ver: string
@@ -20,9 +22,10 @@ class VitePluginBuildId {
     total_build: 0
   }
 
-  constructor(root: string) {
+  constructor(root: string, destination: string) {
     this.root = root
-    this.root_ver_path = this.resolve_path('version.json')
+    this.destination = destination
+    this.root_ver_path = this.resolve_path(this.destination, 'version.json')
     this.project_json_path = this.resolve_path('package.json')
   }
 
@@ -74,20 +77,22 @@ class VitePluginBuildId {
     this.app_version.total_build = this.app_version.total_build + 1
   }
 
-  build_version_json(dest: string) {
+  build_version_json(dir: string | undefined = undefined) {
     const content = JSON.stringify(this.app_version)
     console.info('Build Version: ' + this.app_version.version + '-' + this.app_version.build_id +
       ' (' + this.app_version.total_build + ')')
-    fs.writeFileSync(this.root_ver_path, content, {encoding: 'utf-8', flag: 'w'})
-    console.info('Saved version.json')
-    fs.copyFileSync(this.root_ver_path, this.resolve_path(dest, 'version.json'))
-    console.info('Copied version.json to ' + dest)
+
+    const relative_path = dir ?
+        path.isAbsolute(dir) ? path.relative(this.root, dir): dir
+        : undefined
+    const version_path = relative_path ? this.resolve_path(relative_path, 'version.json') : this.root_ver_path
+    console.info('Saved version.json to ' + (relative_path ?? this.destination))
+    fs.writeFileSync(version_path, content, {encoding: 'utf-8', flag: 'w'})
   }
 }
 
 // noinspection JSUnusedGlobalSymbols
-export default function vitePluginBuildId() {
-  let config: ResolvedConfig
+export default function vitePluginBuildId(destination: string = 'src') {
   let v: VitePluginBuildId
   return {
     name: 'vite-plugin-build-id',
@@ -96,7 +101,7 @@ export default function vitePluginBuildId() {
       const resolvedRoot = normalizePath(
         _config?.root ? path.resolve(_config.root) : process.cwd()
       )
-      v = new VitePluginBuildId(resolvedRoot)
+      v = new VitePluginBuildId(resolvedRoot, destination)
       v.resolve_current_version().then(async () => {
         v.bump()
 
@@ -106,14 +111,11 @@ export default function vitePluginBuildId() {
           return
         }
 
-        v.build_version_json('src')
+        v.build_version_json()
       })
     },
-    configResolved(resolvedConfig: ResolvedConfig) {
-      config = resolvedConfig
-    },
-    writeBundle () {
-      v.build_version_json(config.build.outDir)
+    writeBundle(options: OutputOptions) {
+      v.build_version_json(options.dir)
     }
   }
 }
