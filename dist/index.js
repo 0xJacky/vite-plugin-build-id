@@ -137,28 +137,21 @@ class VitePluginBuildId {
 }
 // noinspection JSUnusedGlobalSymbols
 export default async function vitePluginBuildId(options = {}) {
-    let v;
-    let cmd = '';
+    let __v;
     return {
         name: 'vite-plugin-build-id',
         async config(_config, { command }) {
             // resolve root
             const resolvedRoot = normalizePath(_config?.root ? path.resolve(_config.root) : process.cwd());
-            cmd = command;
-            v = new VitePluginBuildId(resolvedRoot, optionsWithDefaults(options));
-            await v.init();
-            v.bump();
-            if (command !== 'build') {
-                v.appVersion.build_id = 0;
-                v.appVersion.total_build = 0;
-                return;
+            __v = new VitePluginBuildId(resolvedRoot, optionsWithDefaults(options));
+            await __v.init();
+            if (command === 'build') {
+                __v.bump();
+                __v.buildVersionJson();
             }
-            v.buildVersionJson();
         },
         writeBundle(options) {
-            if (cmd === 'build') {
-                v.buildVersionJson(options.dir);
-            }
+            __v.buildVersionJson(options.dir);
         }
     };
 }
