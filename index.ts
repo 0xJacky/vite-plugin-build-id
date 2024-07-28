@@ -180,6 +180,7 @@ class VitePluginBuildId {
 // noinspection JSUnusedGlobalSymbols
 export default async function vitePluginBuildId(options: Options = {}) {
   let v: VitePluginBuildId
+  let cmd = ''
   return {
     name: 'vite-plugin-build-id',
     async config(_config: UserConfig, {command}) {
@@ -187,6 +188,9 @@ export default async function vitePluginBuildId(options: Options = {}) {
       const resolvedRoot = normalizePath(
         _config?.root ? path.resolve(_config.root) : process.cwd()
       )
+
+      cmd = command
+
       v = new VitePluginBuildId(resolvedRoot, optionsWithDefaults(options))
       await v.init()
 
@@ -199,7 +203,9 @@ export default async function vitePluginBuildId(options: Options = {}) {
       v.buildVersionJson()
     },
     writeBundle(options: OutputOptions) {
-      v.buildVersionJson(options.dir)
+      if (cmd === 'build') {
+        v.buildVersionJson(options.dir)
+      }
     }
   }
 }
