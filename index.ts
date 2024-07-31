@@ -1,10 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import url from 'node:url'
-import {normalizePath, UserConfig} from 'vite'
+import {Logger, normalizePath, ResolvedConfig} from 'vite'
 import type {OutputOptions} from 'rollup'
 import git from 'isomorphic-git'
-import { hasher } from 'node-object-hash'
+import {hasher} from 'node-object-hash'
+import colors from 'picocolors'
 
 export interface Options {
   destination?: string
@@ -40,7 +41,8 @@ function withDefaults<T>() {
 
 class VitePluginBuildId {
   public root: string
-  private options: Options
+  private readonly options: Options
+  private readonly logger: Logger
   private readonly projectJsonPath: string
   private readonly rootVerPath: string
   private gitPath: string
@@ -54,9 +56,10 @@ class VitePluginBuildId {
     total_build: 0
   }
 
-  constructor(root: string, options: Options) {
+  constructor(root: string, options: Options, logger: Logger) {
     this.root = root
     this.options = options
+    this.logger = logger
     this.rootVerPath = this.resolvePath(options.destination, 'version.json')
     this.projectJsonPath = this.resolvePath('package.json')
   }
@@ -66,7 +69,7 @@ class VitePluginBuildId {
       try {
         this.gitPath = await git.findRoot({fs, filepath: path.resolve(this.resolvePath())})
       } catch (err) {
-        console.warn('git info not found, some functions may not work')
+        this.logger.warnOnce('git info not found, some functions may not work')
       }
     }
 
@@ -102,7 +105,7 @@ class VitePluginBuildId {
         total_build: r.total_build
       })
     } catch (err) {
-      console.log(err)
+      this.logger.warnOnce(err)
     }
 
     this.packageVer = await this.getVersionInPackage()
@@ -110,10 +113,7 @@ class VitePluginBuildId {
 
   private async getVersionInPackage() {
     let r = this.importJson(this.projectJsonPath)
-    const v = r.version
-    console.info('Package Version: ' + v)
-
-    return v
+    return r.version
   }
 
   private async getCommitHash() {
@@ -138,41 +138,46 @@ class VitePluginBuildId {
     return this.appVersion.build_id + 1
   }
 
+  private buildVersion() {
+    this.logger.info('Package Version: ' + colors.cyan(this.packageVer))
+
+    this.logger.info('Build Version: ' + colors.green(this.appVersion.version + '-' + this.appVersion.build_id +
+        ' (' + this.appVersion.total_build + ')'))
+    if (this.options.enableCommitHash) {
+      this.appVersion.commit_hash = this.commitHash
+      this.logger.info('Commit Hash: ' + colors.green(this.commitHash))
+    }
+
+    if (this.options.disableBumpSameStatus) {
+      if (this.gitPath) {
+        this.appVersion.status_hash = this.statusHash
+        this.logger.info('Status Hash: ' + this.statusHash)
+      } else {
+        this.logger.info('Status Hash Not Work')
+      }
+    }
+  }
+
   bump() {
     if (this.options.disableBumpSameStatus && this.statusHash === this.appVersion.status_hash) {
-      console.info('Same file status, skip bump.')
+      this.logger.info('Same file status, skip bump.')
       return
     }
 
     this.appVersion.version = this.packageVer
     this.appVersion.build_id = this.nextBuildId()
     this.appVersion.total_build = this.appVersion.total_build + 1
+    this.buildVersion()
   }
 
   buildVersionJson(dir: string | undefined = undefined) {
-    console.info('Build Version: ' + this.appVersion.version + '-' + this.appVersion.build_id +
-      ' (' + this.appVersion.total_build + ')')
-    if (this.options.enableCommitHash) {
-      this.appVersion.commit_hash = this.commitHash
-      console.info('Commit Hash: ' + this.commitHash)
-    }
-
-    if (this.options.disableBumpSameStatus) {
-      if (this.gitPath) {
-        this.appVersion.status_hash = this.statusHash
-        console.info('Status Hash: ' + this.statusHash)
-      } else {
-        console.info('Status Hash Not Work')
-      }
-    }
-
     const content = JSON.stringify(this.appVersion)
 
     const relativePath = dir ?
         path.isAbsolute(dir) ? path.relative(this.root, dir): dir
         : undefined
     const versionPath = relativePath ? this.resolvePath(relativePath, 'version.json') : this.rootVerPath
-    console.info('Saved version.json to ' + (relativePath ?? this.options.destination))
+    this.logger.info('Saved version.json to ' + colors.cyan(relativePath ?? this.options.destination))
     fs.writeFileSync(versionPath, content, {encoding: 'utf-8', flag: 'w'})
   }
 }
@@ -183,21 +188,18 @@ export default async function vitePluginBuildId(options: Options = {}) {
 
   return {
     name: 'vite-plugin-build-id',
-    async config(_config: UserConfig, {command}) {
-      // resolve root
-      const resolvedRoot = normalizePath(
-        _config?.root ? path.resolve(_config.root) : process.cwd()
-      )
+    async configResolved(config: ResolvedConfig) {
+      const { logger } = config
 
-      __v = new VitePluginBuildId(resolvedRoot, optionsWithDefaults(options))
+      __v = new VitePluginBuildId(config.root, optionsWithDefaults(options), logger)
       await __v.init()
-
-      if (command === 'build') {
-        __v.bump()
-        __v.buildVersionJson()
-      }
     },
     writeBundle(options: OutputOptions) {
+      // bump version and build json to project root directory
+      __v.bump()
+      __v.buildVersionJson()
+
+      // build json to distribute directory
       __v.buildVersionJson(options.dir)
     }
   }

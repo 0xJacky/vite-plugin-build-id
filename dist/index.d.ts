@@ -1,4 +1,4 @@
-import { UserConfig } from 'vite';
+import { ResolvedConfig } from 'vite';
 import type { OutputOptions } from 'rollup';
 export interface Options {
     destination?: string;
@@ -14,8 +14,6 @@ export interface AppVersion {
 }
 export default function vitePluginBuildId(options?: Options): Promise<{
     name: string;
-    config(_config: UserConfig, { command }: {
-        command: any;
-    }): Promise<void>;
+    configResolved(config: ResolvedConfig): Promise<void>;
     writeBundle(options: OutputOptions): void;
 }>;

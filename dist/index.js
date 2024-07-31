@@ -4,6 +4,7 @@ import url from 'node:url';
 import { normalizePath } from 'vite';
 import git from 'isomorphic-git';
 import { hasher } from 'node-object-hash';
+import colors from 'picocolors';
 const optionsWithDefaults = withDefaults()({
     destination: 'src',
     enableCommitHash: false,
@@ -23,6 +24,7 @@ function withDefaults() {
 class VitePluginBuildId {
     root;
     options;
+    logger;
     projectJsonPath;
     rootVerPath;
     gitPath;
@@ -34,9 +36,10 @@ class VitePluginBuildId {
         build_id: 0,
         total_build: 0
     };
-    constructor(root, options) {
+    constructor(root, options, logger) {
         this.root = root;
         this.options = options;
+        this.logger = logger;
         this.rootVerPath = this.resolvePath(options.destination, 'version.json');
         this.projectJsonPath = this.resolvePath('package.json');
     }
@@ -46,7 +49,7 @@ class VitePluginBuildId {
                 this.gitPath = await git.findRoot({ fs, filepath: path.resolve(this.resolvePath()) });
             }
             catch (err) {
-                console.warn('git info not found, some functions may not work');
+                this.logger.warnOnce('git info not found, some functions may not work');
             }
         }
         if (this.options.enableCommitHash && this.gitPath) {
@@ -73,15 +76,13 @@ class VitePluginBuildId {
             });
         }
         catch (err) {
-            console.log(err);
+            this.logger.warnOnce(err);
         }
         this.packageVer = await this.getVersionInPackage();
     }
     async getVersionInPackage() {
         let r = this.importJson(this.projectJsonPath);
-        const v = r.version;
-        console.info('Package Version: ' + v);
-        return v;
+        return r.version;
     }
     async getCommitHash() {
         return await git.resolveRef({ fs, dir: this.gitPath, ref: 'HEAD' });
@@ -101,37 +102,41 @@ class VitePluginBuildId {
         }
         return this.appVersion.build_id + 1;
     }
+    buildVersion() {
+        this.logger.info('Package Version: ' + colors.cyan(this.packageVer));
+        this.logger.info('Build Version: ' + colors.green(this.appVersion.version + '-' + this.appVersion.build_id +
+            ' (' + this.appVersion.total_build + ')'));
+        if (this.options.enableCommitHash) {
+            this.appVersion.commit_hash = this.commitHash;
+            this.logger.info('Commit Hash: ' + colors.green(this.commitHash));
+        }
+        if (this.options.disableBumpSameStatus) {
+            if (this.gitPath) {
+                this.appVersion.status_hash = this.statusHash;
+                this.logger.info('Status Hash: ' + this.statusHash);
+            }
+            else {
+                this.logger.info('Status Hash Not Work');
+            }
+        }
+    }
     bump() {
         if (this.options.disableBumpSameStatus && this.statusHash === this.appVersion.status_hash) {
-            console.info('Same file status, skip bump.');
+            this.logger.info('Same file status, skip bump.');
             return;
         }
         this.appVersion.version = this.packageVer;
         this.appVersion.build_id = this.nextBuildId();
         this.appVersion.total_build = this.appVersion.total_build + 1;
+        this.buildVersion();
     }
     buildVersionJson(dir = undefined) {
-        console.info('Build Version: ' + this.appVersion.version + '-' + this.appVersion.build_id +
-            ' (' + this.appVersion.total_build + ')');
-        if (this.options.enableCommitHash) {
-            this.appVersion.commit_hash = this.commitHash;
-            console.info('Commit Hash: ' + this.commitHash);
-        }
-        if (this.options.disableBumpSameStatus) {
-            if (this.gitPath) {
-                this.appVersion.status_hash = this.statusHash;
-                console.info('Status Hash: ' + this.statusHash);
-            }
-            else {
-                console.info('Status Hash Not Work');
-            }
-        }
         const content = JSON.stringify(this.appVersion);
         const relativePath = dir ?
             path.isAbsolute(dir) ? path.relative(this.root, dir) : dir
             : undefined;
         const versionPath = relativePath ? this.resolvePath(relativePath, 'version.json') : this.rootVerPath;
-        console.info('Saved version.json to ' + (relativePath ?? this.options.destination));
+        this.logger.info('Saved version.json to ' + colors.cyan(relativePath ?? this.options.destination));
         fs.writeFileSync(versionPath, content, { encoding: 'utf-8', flag: 'w' });
     }
 }
@@ -140,17 +145,16 @@ export default async function vitePluginBuildId(options = {}) {
     let __v;
     return {
         name: 'vite-plugin-build-id',
-        async config(_config, { command }) {
-            // resolve root
-            const resolvedRoot = normalizePath(_config?.root ? path.resolve(_config.root) : process.cwd());
-            __v = new VitePluginBuildId(resolvedRoot, optionsWithDefaults(options));
+        async configResolved(config) {
+            const { logger } = config;
+            __v = new VitePluginBuildId(config.root, optionsWithDefaults(options), logger);
             await __v.init();
-            if (command === 'build') {
-                __v.bump();
-                __v.buildVersionJson();
-            }
         },
         writeBundle(options) {
+            // bump version and build json to project root directory
+            __v.bump();
+            __v.buildVersionJson();
+            // build json to distribute directory
             __v.buildVersionJson(options.dir);
         }
     };
