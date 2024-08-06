@@ -15,7 +15,7 @@ function withDefaults() {
         return function (p) {
             let result = p;
             for (let k of Object.keys(defs)) {
-                result[k] = result[k] || defs[k];
+                result[k] = result[k] ?? defs[k];
             }
             return result;
         };
@@ -92,7 +92,7 @@ class VitePluginBuildId {
         const rootVerGitRelativePath = path.relative(this.gitPath, path.resolve(this.rootVerPath))
             .replaceAll(path.sep, path.posix.sep);
         const status = (await git.statusMatrix({ fs, dir: this.gitPath }))
-            .filter(row => row[1] !== row[2] && row[0] !== rootVerGitRelativePath)
+            .filter(row => row[1] !== row[2] && row[2] !== 0 && row[3] !== 0 && row[0] !== rootVerGitRelativePath)
             .map(row => [row[0], fs.statSync(path.join(this.gitPath, row[0])).mtime]);
         return hashSortCoerce.hash(status);
     }
