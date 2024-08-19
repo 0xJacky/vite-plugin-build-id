@@ -129,8 +129,7 @@ class VitePluginBuildId {
             row[1] !== row[2] &&
             row[2] !== 0 &&
             row[3] !== 0 &&
-            row[0] !== rootVerGitRelativePath &&
-            fs.existsSync(path.join(this.gitPath, row[0])))
+            row[0] !== rootVerGitRelativePath)
         .map(row => [row[0], fs.statSync(path.join(this.gitPath, row[0])).mtime])
 
     return hashSortCoerce.hash(status)
