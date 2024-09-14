@@ -8,6 +8,7 @@ import {hasher} from 'node-object-hash'
 import colors from 'picocolors'
 
 export interface Options {
+  prepare?: boolean
   destination?: string
   enableCommitHash?: boolean
   disableBumpSameStatus?: boolean
@@ -17,11 +18,16 @@ export interface AppVersion {
   version: string
   build_id: number,
   total_build: number,
-  commit_hash?: string,
-  status_hash?: string
+  commit_hash?: string
+}
+
+export interface StatusHash {
+  previous?: string
+  current?: string
 }
 
 const optionsWithDefaults = withDefaults<Options>()({
+  prepare: false,
   destination: 'src',
   enableCommitHash: false,
   disableBumpSameStatus: true,
@@ -45,11 +51,12 @@ class VitePluginBuildId {
   private readonly logger: Logger
   private readonly projectJsonPath: string
   private readonly rootVerPath: string
+  private readonly hashPath: string
   private gitPath: string
   private packageVer: string
 
   private commitHash: string
-  private statusHash: string
+  private statusHash: StatusHash = {}
   public appVersion: AppVersion = {
     version: '',
     build_id: 0,
@@ -61,6 +68,7 @@ class VitePluginBuildId {
     this.options = options
     this.logger = logger
     this.rootVerPath = this.resolvePath(options.destination, 'version.json')
+    this.hashPath = this.resolvePath('.status_hash')
     this.projectJsonPath = this.resolvePath('package.json')
   }
 
@@ -78,7 +86,9 @@ class VitePluginBuildId {
     }
 
     if (this.options.disableBumpSameStatus && this.gitPath) {
-      this.statusHash = await this.getStatusHash()
+      this.statusHash.previous = fs.existsSync(this.hashPath) ?
+          fs.readFileSync(this.hashPath, {encoding: 'utf-8'}) : undefined
+      this.statusHash.current = await this.getStatusHash()
     }
 
     await this.resolveCurrentVersion()
@@ -132,7 +142,22 @@ class VitePluginBuildId {
             row[0] !== rootVerGitRelativePath)
         .map(row => [row[0], fs.statSync(path.join(this.gitPath, row[0])).mtime])
 
-    return hashSortCoerce.hash(status)
+    return status.length === 0 ? undefined: hashSortCoerce.hash(status)
+  }
+
+  private saveStatusHash() {
+    if (this.options.disableBumpSameStatus) {
+      if (this.gitPath) {
+        fs.writeFileSync(this.hashPath, this.statusHash.current, {encoding: 'utf-8', flag: 'w'})
+        this.logger.info('Status Hash: ' + (this.statusHash.current ?? 'NO MODIFIED FILE'))
+      } else {
+        this.logger.info('Status Hash Not Work')
+      }
+    }
+  }
+
+  private sameStatusHash() {
+    return this.statusHash.current == this.statusHash.previous
   }
 
   private nextBuildId() {
@@ -152,18 +177,11 @@ class VitePluginBuildId {
       this.logger.info('Commit Hash: ' + colors.green(this.commitHash))
     }
 
-    if (this.options.disableBumpSameStatus) {
-      if (this.gitPath) {
-        this.appVersion.status_hash = this.statusHash
-        this.logger.info('Status Hash: ' + this.statusHash)
-      } else {
-        this.logger.info('Status Hash Not Work')
-      }
-    }
+    this.saveStatusHash()
   }
 
   bump() {
-    if (this.options.disableBumpSameStatus && this.statusHash === this.appVersion.status_hash) {
+    if (this.options.disableBumpSameStatus && this.sameStatusHash()) {
       this.logger.info('Same file status, skip bump.')
       return
     }
@@ -190,18 +208,27 @@ class VitePluginBuildId {
 export default async function vitePluginBuildId(options: Options = {}) {
   let __v: VitePluginBuildId
 
+  let pluginOptions = optionsWithDefaults(options)
   return {
     name: 'vite-plugin-build-id',
     async configResolved(config: ResolvedConfig) {
       const { logger } = config
 
-      __v = new VitePluginBuildId(config.root, optionsWithDefaults(options), logger)
+      __v = new VitePluginBuildId(config.root, pluginOptions, logger)
       await __v.init()
+
+      // bump version for prepare
+      if(pluginOptions.prepare) {
+        __v.bump()
+        __v.buildVersionJson()
+      }
     },
     writeBundle(options: OutputOptions) {
       // bump version and build json to project root directory
-      __v.bump()
-      __v.buildVersionJson()
+      if(!pluginOptions.prepare) {
+        __v.bump()
+        __v.buildVersionJson()
+      }
 
       // build json to distribute directory
       __v.buildVersionJson(options.dir)
