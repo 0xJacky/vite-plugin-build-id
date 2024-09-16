@@ -5,6 +5,7 @@ export interface Options {
     destination?: string;
     enableCommitHash?: boolean;
     disableBumpSameStatus?: boolean;
+    buildIdEnv?: string;
 }
 export interface AppVersion {
     version: string;
