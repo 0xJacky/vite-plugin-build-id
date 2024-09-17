@@ -96,19 +96,27 @@ class VitePluginBuildId {
         const hashSortCoerce = hasher();
         const rootVerGitRelativePath = path.relative(this.gitPath, path.resolve(this.rootVerPath))
             .replaceAll(path.sep, path.posix.sep);
+        const statusHashGitRelativePath = path.relative(this.gitPath, path.resolve(this.hashPath))
+            .replaceAll(path.sep, path.posix.sep);
         const status = (await git.statusMatrix({ fs, dir: this.gitPath }))
             .filter(row => row[1] !== row[2] &&
             row[2] !== 0 &&
             row[3] !== 0 &&
-            row[0] !== rootVerGitRelativePath)
+            row[0] !== rootVerGitRelativePath &&
+            row[0] !== statusHashGitRelativePath)
             .map(row => [row[0], fs.statSync(path.join(this.gitPath, row[0])).mtime]);
         return status.length === 0 ? undefined : hashSortCoerce.hash(status);
     }
     saveStatusHash() {
         if (this.options.disableBumpSameStatus) {
             if (this.gitPath) {
+                if (this.statusHash.current === undefined) {
+                    fs.unlinkSync(this.hashPath);
+                    this.logger.info('Status Hash: ' + colors.green('NO MODIFIED FILE'));
+                    return;
+                }
                 fs.writeFileSync(this.hashPath, this.statusHash.current, { encoding: 'utf-8', flag: 'w' });
-                this.logger.info('Status Hash: ' + (this.statusHash.current ?? 'NO MODIFIED FILE'));
+                this.logger.info('Status Hash: ' + this.statusHash.current);
             }
             else {
                 this.logger.info('Status Hash Not Work');

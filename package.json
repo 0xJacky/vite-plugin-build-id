@@ -2,7 +2,7 @@
   "type": "module",
   "name": "vite-plugin-build-id",
   "description": "Automatically generates build_id after production compiled",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "author": "0xJacky",
   "license": "MIT",
   "main": "dist/index.js",
