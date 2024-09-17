@@ -174,7 +174,7 @@ export default async function vitePluginBuildId(options = {}) {
             __v = new VitePluginBuildId(config.root, pluginOptions, logger);
             await __v.init();
             // bump version for prepare
-            if (pluginOptions.prepare) {
+            if (pluginOptions.prepare && config.command === 'build') {
                 __v.bump();
                 __v.buildVersionJson();
             }

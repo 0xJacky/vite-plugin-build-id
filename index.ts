@@ -230,7 +230,7 @@ export default async function vitePluginBuildId(options: Options = {}) {
       await __v.init()
 
       // bump version for prepare
-      if(pluginOptions.prepare) {
+      if(pluginOptions.prepare && config.command === 'build') {
         __v.bump()
         __v.buildVersionJson()
       }
