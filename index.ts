@@ -92,6 +92,10 @@ class VitePluginBuildId {
       this.statusHash.current = await this.getStatusHash()
     }
 
+    if ( process.env.CI ) {
+      this.options.prepare = true
+    }
+
     await this.resolveCurrentVersion()
   }
 
