@@ -143,11 +143,11 @@ class VitePluginBuildId {
         this.saveStatusHash();
     }
     bump() {
-        if (this.options.disableBumpSameStatus && this.sameStatusHash()) {
+        const env = this.options.buildIdEnv ? process.env[this.options.buildIdEnv] : undefined;
+        if (this.options.disableBumpSameStatus && env === undefined && this.sameStatusHash()) {
             this.logger.info('Same file status, skip bump.');
             return;
         }
-        const env = this.options.buildIdEnv ? process.env[this.options.buildIdEnv] : undefined;
         this.appVersion.build_id = env ? parseInt(env) : this.nextBuildId();
         this.appVersion.version = this.packageVer;
         this.appVersion.total_build = this.appVersion.total_build + 1;
