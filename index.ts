@@ -153,7 +153,12 @@ class VitePluginBuildId {
     if (this.options.disableBumpSameStatus) {
       if (this.gitPath) {
         if (this.statusHash.current === undefined) {
-          fs.unlinkSync(this.hashPath)
+          try {
+            fs.unlinkSync(this.hashPath)
+          } catch (err) {
+            if (err.code !== 'ENOENT') throw err;
+          }
+
           this.logger.info('Status Hash: ' + colors.green('NO MODIFIED FILE'))
           return
         }
