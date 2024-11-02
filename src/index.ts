@@ -10,10 +10,43 @@ import colors from 'picocolors'
 import { normalizePath } from 'vite'
 
 export interface Options {
+  /**
+   * Prepares the version file before the Vite build process
+   *
+   * Default: `false`
+   * Useful for special cases where the version file needs to be available before the build.
+   */
   prepare?: boolean
+
+  /**
+   * Specifies the destination folder
+   *
+   * Default is `src`
+   */
   destination?: string
+
+  /**
+   * Enables inclusion of the latest git commit hash
+   *
+   * Default is `false`
+   * Compare git's commit hash with the last time it was generated to avoid unwanted build id bump.
+   */
   enableCommitHash?: boolean
+
+  /**
+   * Disables build ID increment when no changes are detected in the git workspace
+   *
+   * Default is `true`
+   * Prevents `build_id` from incrementing if the current workspace status is unchanged.
+   */
   disableBumpSameStatus?: boolean
+
+  /**
+   * Specifies the environment variable for setting the build ID
+   *
+   * Default is `true`
+   * Useful for integrating CI/CD build numbers as the build ID.
+   */
   buildIdEnv?: string
 }
 
