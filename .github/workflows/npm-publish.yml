@@ -4,47 +4,59 @@
 name: Node.js Package
 
 on:
-    push:
-        branches:
-            - '*'
-        paths:
-            - "*.ts"
-            - "*.json"
-            - ".github/workflows/npm-publish.yml"
-    pull_request:
-        types: [ opened, synchronize, reopened ]
-        paths:
-            - "*.ts"
-            - "*.json"
-            - ".github/workflows/npm-publish.yml"
-    release:
-        types:
-            - published
+  push:
+    branches:
+      - '*'
+    paths:
+      - '*.ts'
+      - '*.json'
+      - .github/workflows/npm-publish.yml
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '*.ts'
+      - '*.json'
+      - .github/workflows/npm-publish.yml
+  release:
+    types:
+      - published
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: |
-            corepack enable
-            corepack prepare pnpm@latest --activate
-            pnpm install
-            pnpm build
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  publish-npm:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.event_name == 'release'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Set up nodejs
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: current
           registry-url: https://registry.npmjs.org/
-      - run: npm publish
+
+      - name: Install dependencies
+        run: |
+          corepack enable
+          corepack prepare pnpm@latest --activate
+          pnpm install
+
+      - name: Check code style
+        run: |
+          pnpm run lint
+
+      - name: Build
+        run: |
+          pnpm build
+          pnpm pack
+
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: 'vite-plugin-build-id-*.tgz'
+
+      - name: Publish to npm
+        if: github.event_name == 'release'
+        run: npm publish --access public
         env:
-          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
+          NODE_AUTH_TOKEN: ${{ secrets.npm_token }}

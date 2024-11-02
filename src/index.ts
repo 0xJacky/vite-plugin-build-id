@@ -1,11 +1,13 @@
+import type { NormalizedOutputOptions } from 'rollup'
+import type { Logger, Plugin, ResolvedConfig } from 'vite'
 import fs from 'node:fs'
 import path from 'node:path'
+import process from 'node:process'
 import url from 'node:url'
-import {Logger, normalizePath, ResolvedConfig} from 'vite'
-import type {OutputOptions} from 'rollup'
 import git from 'isomorphic-git'
-import {hasher} from 'node-object-hash'
+import { hasher } from 'node-object-hash'
 import colors from 'picocolors'
+import { normalizePath } from 'vite'
 
 export interface Options {
   prepare?: boolean
@@ -17,8 +19,8 @@ export interface Options {
 
 export interface AppVersion {
   version: string
-  build_id: number,
-  total_build: number,
+  build_id: number
+  total_build: number
   commit_hash?: string
 }
 
@@ -37,11 +39,11 @@ const optionsWithDefaults = withDefaults<Options>()({
 function withDefaults<T>() {
   return function <TDefaults extends Partial<T>>(defs: TDefaults) {
     return function (p: Pick<T, Exclude<keyof T, keyof TDefaults>> & Partial<TDefaults>): T {
-      let result: any = p;
-      for (let k of Object.keys(defs)) {
-        result[k] = result[k] ?? defs[k];
+      const result: any = p
+      for (const k of Object.keys(defs)) {
+        result[k] = result[k] ?? defs[k]
       }
-      return result;
+      return result
     }
   }
 }
@@ -61,7 +63,7 @@ class VitePluginBuildId {
   public appVersion: AppVersion = {
     version: '',
     build_id: 0,
-    total_build: 0
+    total_build: 0,
   }
 
   constructor(root: string, options: Options, logger: Logger) {
@@ -76,8 +78,9 @@ class VitePluginBuildId {
   async init() {
     if (this.options.enableCommitHash || this.options.disableBumpSameStatus) {
       try {
-        this.gitPath = await git.findRoot({fs, filepath: path.resolve(this.resolvePath())})
-      } catch (err) {
+        this.gitPath = await git.findRoot({ fs, filepath: path.resolve(this.resolvePath()) })
+      }
+      catch {
         this.logger.warnOnce('git info not found, some functions may not work')
       }
     }
@@ -87,12 +90,13 @@ class VitePluginBuildId {
     }
 
     if (this.options.disableBumpSameStatus && this.gitPath) {
-      this.statusHash.previous = fs.existsSync(this.hashPath) ?
-          fs.readFileSync(this.hashPath, {encoding: 'utf-8'}) : undefined
+      this.statusHash.previous = fs.existsSync(this.hashPath)
+        ? fs.readFileSync(this.hashPath, { encoding: 'utf-8' })
+        : undefined
       this.statusHash.current = await this.getStatusHash()
     }
 
-    if ( process.env.CI ) {
+    if (process.env.CI) {
       this.options.prepare = true
     }
 
@@ -106,20 +110,22 @@ class VitePluginBuildId {
   private importJson(path: string) {
     return JSON.parse(
       fs.readFileSync(
-        new URL(url.pathToFileURL(path), import.meta.url), {encoding: 'utf8', flag: 'r'}
-      )
+        new URL(url.pathToFileURL(path), import.meta.url),
+        { encoding: 'utf8', flag: 'r' },
+      ),
     )
   }
 
   private async resolveCurrentVersion() {
     try {
-      let r = this.importJson(this.rootVerPath)
+      const r = this.importJson(this.rootVerPath)
       Object.assign(this.appVersion, {
         version: r.version,
         build_id: r.build_id,
-        total_build: r.total_build
+        total_build: r.total_build,
       })
-    } catch (err) {
+    }
+    catch (err) {
       this.logger.warnOnce(err)
     }
 
@@ -127,30 +133,30 @@ class VitePluginBuildId {
   }
 
   private async getVersionInPackage() {
-    let r = this.importJson(this.projectJsonPath)
+    const r = this.importJson(this.projectJsonPath)
     return r.version
   }
 
   private async getCommitHash() {
-    return await git.resolveRef({fs, dir: this.gitPath, ref: 'HEAD'})
+    return await git.resolveRef({ fs, dir: this.gitPath, ref: 'HEAD' })
   }
 
   private async getStatusHash() {
     const hashSortCoerce = hasher()
     const rootVerGitRelativePath = path.relative(this.gitPath, path.resolve(this.rootVerPath))
-        .replaceAll(path.sep, path.posix.sep)
+      .replaceAll(path.sep, path.posix.sep)
     const statusHashGitRelativePath = path.relative(this.gitPath, path.resolve(this.hashPath))
-        .replaceAll(path.sep, path.posix.sep)
-    const status = (await git.statusMatrix({fs, dir: this.gitPath}))
-        .filter(row =>
-            row[1] !== row[2] &&
-            row[2] !== 0 &&
-            row[3] !== 0 &&
-            row[0] !== rootVerGitRelativePath &&
-            row[0] !== statusHashGitRelativePath)
-        .map(row => [row[0], fs.statSync(path.join(this.gitPath, row[0])).mtime])
+      .replaceAll(path.sep, path.posix.sep)
+    const status = (await git.statusMatrix({ fs, dir: this.gitPath }))
+      .filter(row =>
+        row[1] !== row[2]
+        && row[2] !== 0
+        && row[3] !== 0
+        && row[0] !== rootVerGitRelativePath
+        && row[0] !== statusHashGitRelativePath)
+      .map(row => [row[0], fs.statSync(path.join(this.gitPath, row[0])).mtime])
 
-    return status.length === 0 ? undefined: hashSortCoerce.hash(status)
+    return status.length === 0 ? undefined : hashSortCoerce.hash(status)
   }
 
   private saveStatusHash() {
@@ -159,41 +165,44 @@ class VitePluginBuildId {
         if (this.statusHash.current === undefined) {
           try {
             fs.unlinkSync(this.hashPath)
-          } catch (err) {
-            if (err.code !== 'ENOENT') throw err;
+          }
+          catch (err) {
+            if (err.code !== 'ENOENT')
+              throw err
           }
 
-          this.logger.info('Status Hash: ' + colors.green('NO MODIFIED FILE'))
+          this.logger.info(`Status Hash: ${colors.green('NO MODIFIED FILE')}`)
           return
         }
 
-        fs.writeFileSync(this.hashPath, this.statusHash.current, {encoding: 'utf-8', flag: 'w'})
-        this.logger.info('Status Hash: ' + this.statusHash.current)
-      } else {
+        fs.writeFileSync(this.hashPath, this.statusHash.current, { encoding: 'utf-8', flag: 'w' })
+        this.logger.info(`Status Hash: ${this.statusHash.current}`)
+      }
+      else {
         this.logger.info('Status Hash Not Work')
       }
     }
   }
 
   private sameStatusHash() {
-    return this.statusHash.current == this.statusHash.previous
+    return this.statusHash.current === this.statusHash.previous
   }
 
   private nextBuildId() {
-    if (this.appVersion['version'] !== this.packageVer) {
+    if (this.appVersion.version !== this.packageVer) {
       return 1
     }
     return this.appVersion.build_id + 1
   }
 
   private buildVersion() {
-    this.logger.info('Package Version: ' + colors.cyan(this.packageVer))
+    this.logger.info(`Package Version: ${colors.cyan(this.packageVer)}`)
 
-    this.logger.info('Build Version: ' + colors.green(this.appVersion.version + '-' + this.appVersion.build_id +
-        ' (' + this.appVersion.total_build + ')'))
+    this.logger.info(`Build Version: ${colors.green(`${this.appVersion.version}-${this.appVersion.build_id
+    } (${this.appVersion.total_build})`)}`)
     if (this.options.enableCommitHash) {
       this.appVersion.commit_hash = this.commitHash
-      this.logger.info('Commit Hash: ' + colors.green(this.commitHash))
+      this.logger.info(`Commit Hash: ${colors.green(this.commitHash)}`)
     }
 
     this.saveStatusHash()
@@ -206,7 +215,7 @@ class VitePluginBuildId {
       return
     }
 
-    this.appVersion.build_id = env ? parseInt(env) : this.nextBuildId()
+    this.appVersion.build_id = env ? Number.parseInt(env) : this.nextBuildId()
     this.appVersion.version = this.packageVer
     this.appVersion.total_build = this.appVersion.total_build + 1
     this.buildVersion()
@@ -215,20 +224,20 @@ class VitePluginBuildId {
   buildVersionJson(dir: string | undefined = undefined) {
     const content = JSON.stringify(this.appVersion)
 
-    const relativePath = dir ?
-        path.isAbsolute(dir) ? path.relative(this.root, dir): dir
-        : undefined
+    const relativePath = dir
+      ? path.isAbsolute(dir) ? path.relative(this.root, dir) : dir
+      : undefined
     const versionPath = relativePath ? this.resolvePath(relativePath, 'version.json') : this.rootVerPath
-    this.logger.info('Saved version.json to ' + colors.cyan(relativePath ?? this.options.destination))
-    fs.writeFileSync(versionPath, content, {encoding: 'utf-8', flag: 'w'})
+    this.logger.info(`Saved version.json to ${colors.cyan(relativePath ?? this.options.destination)}`)
+    fs.writeFileSync(versionPath, content, { encoding: 'utf-8', flag: 'w' })
   }
 }
 
 // noinspection JSUnusedGlobalSymbols
-export default async function vitePluginBuildId(options: Options = {}) {
+export default function vitePluginBuildId(options: Options = {}): Plugin {
   let __v: VitePluginBuildId
 
-  let pluginOptions = optionsWithDefaults(options)
+  const pluginOptions = optionsWithDefaults(options)
   return {
     name: 'vite-plugin-build-id',
     async configResolved(config: ResolvedConfig) {
@@ -238,20 +247,20 @@ export default async function vitePluginBuildId(options: Options = {}) {
       await __v.init()
 
       // bump version for prepare
-      if(pluginOptions.prepare && config.command === 'build') {
+      if (pluginOptions.prepare && config.command === 'build') {
         __v.bump()
         __v.buildVersionJson()
       }
     },
-    writeBundle(options: OutputOptions) {
+    writeBundle(options: NormalizedOutputOptions) {
       // bump version and build json to project root directory
-      if(!pluginOptions.prepare) {
+      if (!pluginOptions.prepare) {
         __v.bump()
         __v.buildVersionJson()
       }
 
       // build json to distribute directory
       __v.buildVersionJson(options.dir)
-    }
+    },
   }
 }
