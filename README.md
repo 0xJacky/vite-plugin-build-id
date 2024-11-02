@@ -18,7 +18,7 @@ In `vite.config.ts`:
 import { defineConfig } from 'vite'
 
 export default defineConfig({
-	plugins: [vitePluginBuildId()]
+  plugins: [vitePluginBuildId()]
 })
 ```
 
@@ -26,9 +26,9 @@ This will create a `version.json` file in your `src` folder with the following s
 
 ```json
 {
-    "version": "{the-verion-in-package.json}",
-    "build_id": 1,
-    "total_build": 1
+  "version": "{the-verion-in-package.json}",
+  "build_id": 1,
+  "total_build": 1
 }
 ```
 
@@ -52,11 +52,11 @@ If you'd like to use a CI build number as the `build_id`, set the `buildIdEnv` o
 import { defineConfig } from 'vite'
 
 export default defineConfig({
-    plugins: [
-        vitePluginBuildId({
-            buildIdEnv: 'DRONE_BUILD_NUMBER',
-        }),
-    ]
+  plugins: [
+    vitePluginBuildId({
+      buildIdEnv: 'DRONE_BUILD_NUMBER',
+    }),
+  ]
 })
 ```
 
@@ -64,44 +64,43 @@ export default defineConfig({
 
 ```ts
 interface Options {
-   /**
+  /**
    * Prepares the version file before the Vite build process
    *
    * Default: `false`
    * Useful for special cases where the version file needs to be available before the build.
    */
-    prepare?: boolean;
-    
-   /**
+  prepare?: boolean
+
+  /**
    * Specifies the destination folder
    *
    * Default is `src`
    */
-    destination?: string;
-    
-   /**
+  destination?: string
+
+  /**
    * Enables inclusion of the latest git commit hash
    *
    * Default is `false`
    * Compare git's commit hash with the last time it was generated to avoid unwanted build id bump.
    */
-    enableCommitHash?: boolean;
-    
-   /**
+  enableCommitHash?: boolean
+
+  /**
    * Disables build ID increment when no changes are detected in the git workspace
    *
    * Default is `true`
    * Prevents `build_id` from incrementing if the current workspace status is unchanged.
    */
-    disableBumpSameStatus?: boolean;
-    
-   /**
+  disableBumpSameStatus?: boolean
+
+  /**
    * Specifies the environment variable for setting the build ID
    *
    * Default is `true`
    * Useful for integrating CI/CD build numbers as the build ID.
    */
-    buildIdEnv?: string;
+  buildIdEnv?: string
 }
 ```
-
