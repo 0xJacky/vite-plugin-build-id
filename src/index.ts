@@ -141,25 +141,40 @@ class VitePluginBuildId {
   }
 
   private importJson(path: string) {
-    return JSON.parse(
-      fs.readFileSync(
-        new URL(url.pathToFileURL(path), import.meta.url),
-        { encoding: 'utf8', flag: 'r' },
-      ),
-    )
+    try {
+      return JSON.parse(
+        fs.readFileSync(
+          new URL(url.pathToFileURL(path), import.meta.url),
+          { encoding: 'utf8', flag: 'r' },
+        ),
+      )
+    }
+    catch (err) {
+      if (err.code === 'ENOENT') {
+        this.logger.info(`File not found: ${path}, creating a new one`)
+        return {}
+      }
+      throw err
+    }
   }
 
   private async resolveCurrentVersion() {
     try {
       const r = this.importJson(this.rootVerPath)
       Object.assign(this.appVersion, {
-        version: r.version,
-        build_id: r.build_id,
-        total_build: r.total_build,
+        version: r.version || '',
+        build_id: r.build_id || 0,
+        total_build: r.total_build || 0,
       })
     }
     catch (err) {
-      this.logger.warnOnce(err)
+      this.logger.warnOnce(`Error resolving version: ${err.message}`)
+      // Initialize with default values
+      Object.assign(this.appVersion, {
+        version: '',
+        build_id: 0,
+        total_build: 0,
+      })
     }
 
     this.packageVer = await this.getVersionInPackage()
