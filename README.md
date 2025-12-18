@@ -16,6 +16,7 @@ In `vite.config.ts`:
 
 ```ts
 import { defineConfig } from 'vite'
+import vitePluginBuildId from 'vite-plugin-build-id'
 
 export default defineConfig({
   plugins: [vitePluginBuildId()]
