@@ -1,9 +1,7 @@
-import type { NormalizedOutputOptions } from 'rollup'
 import type { Logger, Plugin, ResolvedConfig } from 'vite'
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import url from 'node:url'
 import git from 'isomorphic-git'
 import { hasher } from 'node-object-hash'
 import colors from 'picocolors'
@@ -142,18 +140,22 @@ class VitePluginBuildId {
 
   private importJson(path: string) {
     try {
-      return JSON.parse(
-        fs.readFileSync(
-          new URL(url.pathToFileURL(path), import.meta.url),
-          { encoding: 'utf8', flag: 'r' },
-        ),
-      )
-    }
-    catch (err) {
-      if (err.code === 'ENOENT') {
+      if (!fs.existsSync(path)) {
         this.logger.info(`File not found: ${path}, creating a new one`)
         return {}
       }
+
+      return JSON.parse(
+        fs.readFileSync(path, { encoding: 'utf8', flag: 'r' }),
+      )
+    }
+    catch (err) {
+      const errno = (err as NodeJS.ErrnoException | null | undefined)?.code
+      if (errno === 'ENOENT') {
+        this.logger.info(`File not found: ${path}, creating a new one`)
+        return {}
+      }
+
       throw err
     }
   }
@@ -277,6 +279,7 @@ class VitePluginBuildId {
       : undefined
     const versionPath = relativePath ? this.resolvePath(relativePath, 'version.json') : this.rootVerPath
     this.logger.info(`Saved version.json to ${colors.cyan(relativePath ?? this.options.destination)}`)
+    fs.mkdirSync(path.dirname(versionPath), { recursive: true })
     fs.writeFileSync(versionPath, content, { encoding: 'utf-8', flag: 'w' })
   }
 }
@@ -300,7 +303,7 @@ export default function vitePluginBuildId(options: Options = {}): Plugin {
         __v.buildVersionJson()
       }
     },
-    writeBundle(options: NormalizedOutputOptions) {
+    writeBundle(options) {
       // bump version and build json to project root directory
       if (!pluginOptions.prepare) {
         __v.bump()
