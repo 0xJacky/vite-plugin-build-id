@@ -1,8 +1,7 @@
 {
   "name": "vite-plugin-build-id",
   "type": "module",
-  "version": "0.6.0",
-  "packageManager": "pnpm@9.12.3+sha256.24235772cc4ac82a62627cd47f834c72667a2ce87799a846ec4e8e555e2d4b8b",
+  "version": "0.7.0",
   "description": "Automatically generates build_id after production compiled",
   "author": {
     "name": "0xJacky",
@@ -37,15 +36,14 @@
     "build:test": "tsc -p tsconfig.test.json",
     "test": "pnpm -s build:test && node --test"
   },
-  "dependencies": {},
   "devDependencies": {
-    "@antfu/eslint-config": "^3.16.0",
-    "@types/node": "^22.19.3",
-    "eslint": "^9.39.2",
+    "@antfu/eslint-config": "^7.7.2",
+    "@types/node": "^25.5.0",
+    "eslint": "^10.0.3",
     "picocolors": "^1.1.1",
     "rollup": "4.24.3",
     "typescript": "^5.9.3",
     "unbuild": "^3.6.1",
-    "vite": "^7.3.0"
+    "vite": "^8.0.0"
   }
 }
