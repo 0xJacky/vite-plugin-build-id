@@ -2,8 +2,6 @@ import type { Logger, Plugin, ResolvedConfig } from 'vite'
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import git from 'isomorphic-git'
-import { hasher } from 'node-object-hash'
 import colors from 'picocolors'
 import { normalizePath } from 'vite'
 
@@ -24,25 +22,8 @@ export interface Options {
   destination?: string
 
   /**
-   * Enables inclusion of the latest git commit hash
-   *
-   * Default is `false`
-   * Compare git's commit hash with the last time it was generated to avoid unwanted build id bump.
-   */
-  enableCommitHash?: boolean
-
-  /**
-   * Disables build ID increment when no changes are detected in the git workspace
-   *
-   * Default is `true`
-   * Prevents `build_id` from incrementing if the current workspace status is unchanged.
-   */
-  disableBumpSameStatus?: boolean
-
-  /**
    * Specifies the environment variable for setting the build ID
    *
-   * Default is `true`
    * Useful for integrating CI/CD build numbers as the build ID.
    */
   buildIdEnv?: string
@@ -52,19 +33,11 @@ export interface AppVersion {
   version: string
   build_id: number
   total_build: number
-  commit_hash?: string
-}
-
-export interface StatusHash {
-  previous?: string
-  current?: string
 }
 
 const optionsWithDefaults = withDefaults<Options>()({
   prepare: false,
   destination: 'src',
-  enableCommitHash: false,
-  disableBumpSameStatus: true,
 } as Partial<Options>)
 
 function withDefaults<T>() {
@@ -85,12 +58,8 @@ class VitePluginBuildId {
   private readonly logger: Logger
   private readonly projectJsonPath: string
   private readonly rootVerPath: string
-  private readonly hashPath: string
-  private gitPath: string
   private packageVer: string
 
-  private commitHash: string
-  private statusHash: StatusHash = {}
   public appVersion: AppVersion = {
     version: '',
     build_id: 0,
@@ -102,31 +71,10 @@ class VitePluginBuildId {
     this.options = options
     this.logger = logger
     this.rootVerPath = this.resolvePath(options.destination, 'version.json')
-    this.hashPath = this.resolvePath('.status_hash')
     this.projectJsonPath = this.resolvePath('package.json')
   }
 
   async init() {
-    if (this.options.enableCommitHash || this.options.disableBumpSameStatus) {
-      try {
-        this.gitPath = await git.findRoot({ fs, filepath: path.resolve(this.resolvePath()) })
-      }
-      catch {
-        this.logger.warnOnce('git info not found, some functions may not work')
-      }
-    }
-
-    if (this.options.enableCommitHash && this.gitPath) {
-      this.commitHash = await this.getCommitHash()
-    }
-
-    if (this.options.disableBumpSameStatus && this.gitPath) {
-      this.statusHash.previous = fs.existsSync(this.hashPath)
-        ? fs.readFileSync(this.hashPath, { encoding: 'utf-8' })
-        : undefined
-      this.statusHash.current = await this.getStatusHash()
-    }
-
     if (process.env.CI) {
       this.options.prepare = true
     }
@@ -187,57 +135,6 @@ class VitePluginBuildId {
     return r.version
   }
 
-  private async getCommitHash() {
-    return await git.resolveRef({ fs, dir: this.gitPath, ref: 'HEAD' })
-  }
-
-  private async getStatusHash() {
-    const hashSortCoerce = hasher()
-    const rootVerGitRelativePath = path.relative(this.gitPath, path.resolve(this.rootVerPath))
-      .replaceAll(path.sep, path.posix.sep)
-    const statusHashGitRelativePath = path.relative(this.gitPath, path.resolve(this.hashPath))
-      .replaceAll(path.sep, path.posix.sep)
-    const status = (await git.statusMatrix({ fs, dir: this.gitPath }))
-      .filter(row =>
-        row[1] !== row[2]
-        && row[2] !== 0
-        && row[3] !== 0
-        && row[0] !== rootVerGitRelativePath
-        && row[0] !== statusHashGitRelativePath)
-      .map(row => [row[0], fs.statSync(path.join(this.gitPath, row[0])).mtime])
-
-    return status.length === 0 ? undefined : hashSortCoerce.hash(status)
-  }
-
-  private saveStatusHash() {
-    if (this.options.disableBumpSameStatus) {
-      if (this.gitPath) {
-        if (this.statusHash.current === undefined) {
-          try {
-            fs.unlinkSync(this.hashPath)
-          }
-          catch (err) {
-            if (err.code !== 'ENOENT')
-              throw err
-          }
-
-          this.logger.info(`Status Hash: ${colors.green('NO MODIFIED FILE')}`)
-          return
-        }
-
-        fs.writeFileSync(this.hashPath, this.statusHash.current, { encoding: 'utf-8', flag: 'w' })
-        this.logger.info(`Status Hash: ${this.statusHash.current}`)
-      }
-      else {
-        this.logger.info('Status Hash Not Work')
-      }
-    }
-  }
-
-  private sameStatusHash() {
-    return this.statusHash.current === this.statusHash.previous
-  }
-
   private nextBuildId() {
     if (this.appVersion.version !== this.packageVer) {
       return 1
@@ -250,21 +147,10 @@ class VitePluginBuildId {
 
     this.logger.info(`Build Version: ${colors.green(`${this.appVersion.version}-${this.appVersion.build_id
     } (${this.appVersion.total_build})`)}`)
-    if (this.options.enableCommitHash) {
-      this.appVersion.commit_hash = this.commitHash
-      this.logger.info(`Commit Hash: ${colors.green(this.commitHash)}`)
-    }
-
-    this.saveStatusHash()
   }
 
   bump() {
     const env = this.options.buildIdEnv ? process.env[this.options.buildIdEnv] : undefined
-    if (this.options.disableBumpSameStatus && env === undefined && this.sameStatusHash()) {
-      this.logger.info('Same file status, skip bump.')
-      return
-    }
-
     this.appVersion.build_id = env ? Number.parseInt(env) : this.nextBuildId()
     this.appVersion.version = this.packageVer
     this.appVersion.total_build = this.appVersion.total_build + 1

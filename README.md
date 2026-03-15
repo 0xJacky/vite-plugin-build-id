@@ -37,13 +37,7 @@ This will create a `version.json` file in your `src` folder with the following s
 - **build_id**: Starts at `1` for each new version and increments with each build.
 - **total_build**: Tracks the total number of builds since the plugin was first configured.
 
-If you leave the `disableBumpSameStatus` option enabled (its default setting), a `.status_hash` file will be created in the root directory to monitor file changes within the workspace. This file helps the plugin determine whether to increment the `build_id`.
-
-To prevent it from being tracked by version control, add the following entry to your `.gitignore` file:
-
-```
-**/.status_hash
-```
+The plugin no longer depends on a git repository. By default, each build increments `build_id`, and each new package version resets it back to `1`.
 
 ### Tips
 
@@ -81,25 +75,8 @@ interface Options {
   destination?: string
 
   /**
-   * Enables inclusion of the latest git commit hash
-   *
-   * Default is `false`
-   * Compare git's commit hash with the last time it was generated to avoid unwanted build id bump.
-   */
-  enableCommitHash?: boolean
-
-  /**
-   * Disables build ID increment when no changes are detected in the git workspace
-   *
-   * Default is `true`
-   * Prevents `build_id` from incrementing if the current workspace status is unchanged.
-   */
-  disableBumpSameStatus?: boolean
-
-  /**
    * Specifies the environment variable for setting the build ID
    *
-   * Default is `true`
    * Useful for integrating CI/CD build numbers as the build ID.
    */
   buildIdEnv?: string
